@@ -131,7 +131,7 @@ main(int argc, char *argv[]) {
 	if (ds == 0)
 		exit(0);
 		
-	uint8_t *e;
+	char *e;
 	e = mmap(NULL, ms, PROT_READ|PROT_WRITE, MAP_SHARED, ifd, 0);
 	if (e == MAP_FAILED)
 		exit(2);
@@ -139,10 +139,10 @@ main(int argc, char *argv[]) {
 
 	switch (mopt) {
 		case 'r':
-			fwrite(e + a, sizeof(uint8_t), ds, stdout);
+			fwrite(e + a, sizeof(char), ds, stdout);
 			break;
 		case 'w':
-			fread(e + a, sizeof(uint8_t), ds, stdin);
+			fread(e + a, sizeof(char), ds, stdin);
 			break;
 	}
 
