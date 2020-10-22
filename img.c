@@ -11,11 +11,11 @@ extern char *__progname;
 
 void
 usage() {
-	fprintf(stderr, "usage  %s [-h]\n", __progname);
-	fprintf(stderr, "       %s -c file size\n", __progname);
-	fprintf(stderr, "       %s -t file size\n", __progname);
-	fprintf(stderr, "       %s -r file addr size > data\n", __progname);
-	fprintf(stderr, "       %s -w file addr size < data\n", __progname);
+	fprintf(stderr, "usage  %s [-hv]\n", __progname);
+	fprintf(stderr, "       %s [-hv] -c file size\n", __progname);
+	fprintf(stderr, "       %s [-hv] -t file size\n", __progname);
+	fprintf(stderr, "       %s [-hv] -r file addr size > data\n", __progname);
+	fprintf(stderr, "       %s [-hv] -w file addr size < data\n", __progname);
 	exit(1);
 }
 
@@ -42,22 +42,27 @@ eatoi(const char *s) {
 
 int
 main(int argc, char *argv[]) {
+	int vopt;
+	vopt = 0;
 	char mopt;
 	mopt = 0;
 	int topt;
 	topt = 0;
 	char *ifn;
 	ifn = NULL;
-	long ms;
+	size_t ms;
 	ms = 0;
-	int a;
+	intptr_t a;
 	a = 0;
-	int ds;
+	size_t ds;
 	ds = 0;
 		
 	char ch;
-	while ((ch = getopt(argc, argv, "hctrw")) != -1) {
+	while ((ch = getopt(argc, argv, "hvctrw")) != -1) {
 		switch (ch) {
+			case 'v':
+				vopt++;
+				break;
 			case 'c':
 			case 't':
 			case 'r':
@@ -66,6 +71,7 @@ main(int argc, char *argv[]) {
 					usage();
 				mopt = ch;
 				break;
+			case 'h':
 			default:
 				usage();
 		}
@@ -138,12 +144,20 @@ main(int argc, char *argv[]) {
 	close(ifd);
 
 	switch (mopt) {
-		case 'r':
-			fwrite(e + a, sizeof(char), ds, stdout);
+		case 'r': {
+			size_t n;
+			n = fwrite(e + a, sizeof(char), ds, stdout);
+			if (vopt >= 1)
+				fprintf(stderr, "Read %zu bytes of %zu bytes\n", n, ds);
 			break;
-		case 'w':
-			fread(e + a, sizeof(char), ds, stdin);
+		}
+		case 'w': {
+			size_t n;
+			n = fread(e + a, sizeof(char), ds, stdin);
+			if (vopt >= 1)
+				fprintf(stderr, "Wrote %zu bytes of %zu bytes\n", n, ds);
 			break;
+		}
 	}
 
 	munmap(e, ms);
