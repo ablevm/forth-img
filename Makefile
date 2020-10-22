@@ -3,7 +3,7 @@ BIN=img
 PREFIX?=/usr/local
 BINDIR=${PREFIX}/bin
 
-CFLAGS+=-g
+CFLAGS+=-g -Wno-unused-result
 
 .PHONY: build clean install uninstall
 
