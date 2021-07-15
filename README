@@ -1,3 +1,40 @@
+img
+
 A tool for working with Forth image files.
 
-ISC License :-) Enjoy!
+GETTING STARTED
+
+Building and installing
+
+$ make install
+...
+$ 
+
+Examples
+
+To create a 1M image file:
+
+$ img -c 1M forth.img
+$ 
+
+To resize an image file:
+
+$ img -r 192B forth.img
+$ 
+
+Process and input data into an image file:
+
+When it appears with an input or output option the -s option operation specifies
+an absolute position within the image file.
+
+$ ... | img -s 256B -i 256B forth.img
+$ 
+
+Output and process data from an image file:
+
+$ img -s 256B -o 128B forth.img | ...
+$ 
+
+LICENSE
+
+ISC-style license

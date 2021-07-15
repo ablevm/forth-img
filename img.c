@@ -1,21 +1,21 @@
+#include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
+#include <err.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <err.h>
 
 extern char *__progname;
 
 void
 usage() {
-	fprintf(stderr, "usage  %s [-hv]\n", __progname);
-	fprintf(stderr, "       %s [-hv] -c file size\n", __progname);
-	fprintf(stderr, "       %s [-hv] -t file size\n", __progname);
-	fprintf(stderr, "       %s [-hv] -r file addr size > data\n", __progname);
-	fprintf(stderr, "       %s [-hv] -w file addr size < data\n", __progname);
+	fprintf(stderr, "usage: %s [-hvf] -c size file\n", __progname);
+	fprintf(stderr, "       %s [-hv] -r size file\n", __progname);
+	fprintf(stderr, "       %s [-hv] [-s addr] -i size file < data\n", __progname);
+	fprintf(stderr, "       %s [-hv] [-s addr] -o size file > data\n", __progname);
 	exit(1);
 }
 
@@ -44,32 +44,42 @@ int
 main(int argc, char *argv[]) {
 	int vopt;
 	vopt = 0;
+	bool fopt;
+	fopt = false;
+	bool sopt;
+	sopt = false;
+	uintptr_t soptarg;
+	soptarg = 0;
 	char mopt;
-	mopt = 0;
-	int topt;
-	topt = 0;
-	char *ifn;
-	ifn = NULL;
-	size_t ms;
-	ms = 0;
-	intptr_t a;
-	a = 0;
-	size_t ds;
-	ds = 0;
-		
+	mopt = '\0';
+	size_t moptarg;
+	moptarg = 0;
+
 	char ch;
-	while ((ch = getopt(argc, argv, "hvctrw")) != -1) {
+	while ((ch = getopt(argc, argv, "hvfs:c:r:i:o:")) != -1) {
 		switch (ch) {
 			case 'v':
 				vopt++;
 				break;
+			case 'f':
+				if (fopt)
+					usage();
+				fopt = true;
+				break;
+			case 's':
+				if (sopt)
+					usage();
+				sopt = true;
+				soptarg = eatoi(optarg);
+				break;
 			case 'c':
-			case 't':
 			case 'r':
-			case 'w':
-				if (mopt != 0)
+			case 'i':
+			case 'o':
+				if (mopt != '\0')
 					usage();
 				mopt = ch;
+				moptarg = eatoi(optarg);
 				break;
 			case 'h':
 			default:
@@ -77,88 +87,103 @@ main(int argc, char *argv[]) {
 		}
 	}
 
-	if (mopt == 0)
+	if (mopt == '\0')
 		usage();
-	
-	argc -= optind;
-	argv += optind;
 
 	switch (mopt) {
 		case 'c':
-		case 't':
-			if (argc != 2)
+			if (sopt)
 				usage();
-			ifn = argv[0];
-			ms = eatoi(argv[1]);
 			break;
 		case 'r':
-		case 'w':
-			if (argc != 3)
+			if (fopt || sopt)
 				usage();
-			ifn = argv[0];
-			int rc;
-			struct stat ifs;
-			rc = stat(ifn, &ifs);
-			if (rc == -1)
-				err(2, "%s", ifn);
-			ms = ifs.st_size;
-			a = eatoi(argv[1]);
-			ds = eatoi(argv[2]);
-	}
-	
-	int ifd;
-	ifd = open(ifn, O_RDWR);
-	if (ifd == -1) {
-		if (mopt == 'c')
-			ifd = open(ifn, O_RDWR|O_CREAT, 0600);
-		if (ifd == -1)
-			err(2, "%s", ifn);
-		int rc;
-		rc = ftruncate(ifd, ms);
-		if (rc == -1)
-			err(3, NULL);
-		if (mopt == 'c')
-			exit(0);
-	} else {
-		if (mopt == 'c')
-			errx(2, "%s: File exists", ifn);
-		if (mopt == 't') {
-			int rc;
-			rc = ftruncate(ifd, ms);
-			if (rc == -1)
-				err(3, NULL);
-			exit(0);
-		}
+			break;
+		case 'i':
+		case 'o':
+			if (fopt)
+				usage();
+			break;
 	}
 
-	if (a + ds > ms)
-		errx(4, "Address out of range");
-	
-	if (ds == 0)
-		exit(0);
-		
-	char *e;
-	e = mmap(NULL, ms, PROT_READ|PROT_WRITE, MAP_SHARED, ifd, 0);
-	if (e == MAP_FAILED)
-		exit(2);
-	close(ifd);
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1)
+		usage();
+
+	char *ifn;
+	ifn = argv[0];
 
 	switch (mopt) {
+		case 'c':
 		case 'r': {
-			size_t n;
-			n = fwrite(e + a, sizeof(char), ds, stdout);
-			if (vopt >= 1)
-				fprintf(stderr, "Read %zu bytes of %zu bytes\n", n, ds);
+			int ifd;
+			if (mopt == 'c') {
+				if (access(ifn, F_OK) == 0) {
+					if (!fopt)
+						errx(2, "%s: File exists", ifn);
+					int y;
+					y = unlink(ifn);
+					if (y != 0)
+						err(2, "%s", ifn);
+				}
+				ifd = open(ifn, O_WRONLY|O_CREAT, 0600);
+			} else {
+				if (access(ifn, F_OK) != 0)
+					errx(2, "%s: File not found", ifn);
+				ifd = open(ifn, O_WRONLY);
+			}
+			if (ifd == -1)
+				err(2, "%s", ifn);
+
+			int y;
+			y = ftruncate(ifd, moptarg);
+			if (y == -1)
+				err(3, NULL);
 			break;
 		}
-		case 'w': {
-			size_t n;
-			n = fread(e + a, sizeof(char), ds, stdin);
-			if (vopt >= 1)
-				fprintf(stderr, "Wrote %zu bytes of %zu bytes\n", n, ds);
+		case 'i':
+		case 'o': {
+			struct stat ifs;
+			int y;
+			y = stat(ifn, &ifs);
+			if (y == -1)
+				err(2, "%s", ifn);
+			size_t mc;
+			mc = ifs.st_size;
+
+			int ifd;
+			ifd = open(ifn, O_RDWR);
+			if (ifd == -1)
+				errx(2, "%s: File not found", ifn);
+			char *m;
+			m = mmap(NULL, mc, PROT_READ|PROT_WRITE, MAP_SHARED, ifd, 0);
+			if (m == MAP_FAILED)
+				err(3, NULL);
+			close(ifd);
+
+			uintptr_t a;
+			a = soptarg;
+			size_t dc;
+			dc = moptarg;
+			if (a > UINTPTR_MAX - dc || a + dc > mc)
+				errx(4, "Address out of range");
+
+			if (mopt == 'i') {
+				size_t n;
+				n = fread(m + a, sizeof(char), dc, stdin);
+				if (vopt >= 1)
+					fprintf(stderr, "Wrote %zu bytes of %zu bytes\n", n, dc);
+			} else {
+				size_t n;
+				n = fwrite(m + a, sizeof(char), dc, stdout);
+				if (vopt >= 1)
+					fprintf(stderr, "Read %zu bytes of %zu bytes\n", n, dc);
+			}
+
+			munmap(m, mc);
 			break;
 		}
 	}
-
-	munmap(e, ms);
 }
