@@ -12,10 +12,10 @@ extern char *__progname;
 
 void
 usage() {
-	fprintf(stderr, "usage: %s [-hvf] -c size file\n", __progname);
-	fprintf(stderr, "       %s [-hv] -r size file\n", __progname);
-	fprintf(stderr, "       %s [-hv] [-s addr] -i size file < data\n", __progname);
-	fprintf(stderr, "       %s [-hv] [-s addr] -o size file > data\n", __progname);
+	fprintf(stderr, "usage: %s [-hvf] [-b base] -c size file\n", __progname);
+	fprintf(stderr, "       %s [-hv] [-b base] -r size file\n", __progname);
+	fprintf(stderr, "       %s [-hv] [-b base] [-s addr] -i size file < data\n", __progname);
+	fprintf(stderr, "       %s [-hv] [-b base] [-s addr] -o size file > data\n", __progname);
 	exit(1);
 }
 
@@ -46,6 +46,10 @@ main(int argc, char *argv[]) {
 	vopt = 0;
 	bool fopt;
 	fopt = false;
+	int bopt;
+	bopt = false;
+	size_t boptarg;
+	boptarg = 0;
 	bool sopt;
 	sopt = false;
 	uintptr_t soptarg;
@@ -56,7 +60,7 @@ main(int argc, char *argv[]) {
 	moptarg = 0;
 
 	char ch;
-	while ((ch = getopt(argc, argv, "hvfs:c:r:i:o:")) != -1) {
+	while ((ch = getopt(argc, argv, "hvfb:s:c:r:i:o:")) != -1) {
 		switch (ch) {
 			case 'v':
 				vopt++;
@@ -65,6 +69,12 @@ main(int argc, char *argv[]) {
 				if (fopt)
 					usage();
 				fopt = true;
+				break;
+			case 'b':
+				if (bopt)
+					usage();
+				bopt = true;
+				boptarg = eatoi(optarg);
 				break;
 			case 's':
 				if (sopt)
@@ -138,7 +148,7 @@ main(int argc, char *argv[]) {
 				err(2, "%s", ifn);
 
 			int y;
-			y = ftruncate(ifd, moptarg);
+			y = ftruncate(ifd, boptarg + moptarg);
 			if (y == -1)
 				err(3, NULL);
 			break;
@@ -164,7 +174,7 @@ main(int argc, char *argv[]) {
 			close(ifd);
 
 			uintptr_t a;
-			a = soptarg;
+			a = boptarg + soptarg;
 			size_t dc;
 			dc = moptarg;
 			if (a > UINTPTR_MAX - dc || a + dc > mc)
